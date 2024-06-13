@@ -7,11 +7,11 @@ This is a console application. You will need the dotnet 8.0 runtime installed fo
 https://dotnet.microsoft.com/en-us/download/dotnet/8.0  
 You're looking for ".NET Runtime 8.0.6" on the right of the page. Download and install the version relevant for your system.  
 
-To run:  
-Windows  
+To run, open a CommandPrompt/Terminal/Console window and navigate (cd) to the folder you unzipped the app to:  
+- Windows  
 TDH3Flash.exe  
 
-Linux And MacOS  
+- Linux And MacOS  
 dotnet TDH3Flash.dll  
 
 
