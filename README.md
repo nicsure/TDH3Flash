@@ -1,6 +1,6 @@
 # Multi platform firmware flasher for the TIDRADIO TD-H3 
   
-This is a console application. On platforms other than Windows you will need the dotnet 8.0 runtime installed.  
+This is a console application. You will need the dotnet 8.0 runtime installed for whatever platform you are using.
 
 To run:  
 Windows  
