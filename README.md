@@ -6,5 +6,9 @@ To run:
 Windows  
 TDH3Flash.exe  
 
-Linux And MacOS
+Linux And MacOS  
 dotnet TDH3Flash.dll  
+
+
+Run without parameters to get a list of available serial ports.  
+Command usage is displayed int he console
