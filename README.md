@@ -11,4 +11,4 @@ dotnet TDH3Flash.dll
 
 
 Run without parameters to get a list of available serial ports.  
-Command usage is displayed int he console
+Command usage is displayed in the console
