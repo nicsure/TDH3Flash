@@ -16,4 +16,8 @@ dotnet TDH3Flash.dll
 
 
 Run without parameters to get a list of available serial ports.  
-Command usage is displayed in the console
+Command usage is displayed in the console  
+
+
+Michał Rychlewski has rewrote this software in Rust. Check it out here  
+https://github.com/derywat/tdh3flash-rs
