@@ -9,18 +9,16 @@ namespace TDH3Flash
 {
     public static class Flash
     {
-        
+        private static string? hexFile = null;
         public static void Go(string[] args)
         {
-            Out("TD-H3 Firmware Flasher\r\n");
+            Out("TD-H3/8 Firmware Flasher\r\n");
             switch (args.Length)
             {
                 case 0:
                     Out("Available serial ports:");
                     foreach(var name in SerialPort.GetPortNames())
-                    {
                         Out(name);
-                    }
                     Usage();
                     break;
                 case 1:
@@ -28,7 +26,13 @@ namespace TDH3Flash
                     Usage();
                     break;
                 default:
-                    Begin(args[0], string.Join(' ', args, 1, args.Length - 1));
+                    if (args[0].ToLower().EndsWith(".hex") && hexFile == null)
+                    {
+                        hexFile = args[0];
+                        Go(args[1..]);
+                    }
+                    else
+                        Begin(args[0], string.Join(' ', args, 1, args.Length - 1).Trim());
                     break;
 
             }
@@ -38,10 +42,37 @@ namespace TDH3Flash
         {
             byte[] bin;
             try { bin = File.ReadAllBytes(file); } catch { Out($"Cannot read file {file}"); return; }
-            int len = (int)Math.Ceiling(bin.Length / 32.0) * 32;
-            byte[] firmware = new byte[len];
-            Array.Copy(bin, 0, firmware, 0, bin.Length);
-            if (len < 40000 || len > 65536) { Out($"{file} is not the correct size to be a valid firmware file"); return; }
+            Out($"Firmware length: {bin.Length}");
+            byte[] firmware;
+            int newLength;
+            if (hexFile != null)
+            {
+                string hex;
+                try { hex = File.ReadAllText(hexFile); } catch { Out($"Cannot read hex file {hexFile}"); return; }
+                newLength = ApplyIHex(bin, hex, out string err, false);
+                if (newLength == 0) { Out($"Cannot process hex file: {err}"); return; }
+                newLength = (int)Math.Ceiling(newLength / 32.0) * 32;
+                if (newLength > 0xf800) { Out($"Patched firmware is too large. Size:{newLength} Maximum:{0xf800}"); return; }
+                firmware = new byte[newLength];
+                Array.Copy(bin, 0, firmware, 0, bin.Length);
+                ApplyIHex(firmware, hex, out _, true);
+                Out($"Hex patch applied, new length: {newLength}");
+                try
+                {
+                    string patchedFile = $"{file}.patched";
+                    File.WriteAllBytes(patchedFile, firmware);
+                    Out($"Written patched binary to: {patchedFile}");
+                }
+                catch { }
+            }
+            else
+            {
+                newLength = (int)Math.Ceiling(bin.Length / 32.0) * 32;
+                Out($"Firmware padded length: {newLength}");
+                firmware = new byte[newLength];
+                Array.Copy(bin, 0, firmware, 0, bin.Length);
+            }
+            if (newLength < 30000 || newLength > 0xf800) { Out($"{file} is not the correct size to be a valid firmware file"); return; }
             SerialPort sp;
             try
             {
@@ -52,7 +83,7 @@ namespace TDH3Flash
                 sp.Open();
             }
             catch { Out($"Unable to open serial port {port}"); return; }
-            Out("Turn off radio, hold PTT and turn radio on keeping PTT held.");
+            Out("Turn off radio, hold PTT (H3) or FlashLight (H8) and turn radio on keeping the button held.");
             bool found = false;
             while(true)
             {
@@ -88,7 +119,7 @@ namespace TDH3Flash
                     }
                 }
             }
-            for (int i = 0, blk = 0; i < len; i += 32, blk++)
+            for (int i = 0, blk = 0; i < newLength; i += 32, blk++)
             {
                 if ((i % 0x800) == 0)
                     Out($"> Flashing {i:X4}");
@@ -96,7 +127,7 @@ namespace TDH3Flash
                 Array.Copy(firmware, i, pkt, 4, 32);
                 for (int j = 4; j < 36; j++) pkt[3] += pkt[j];
                 pkt[0] = 0xa1;
-                if (i + 32 >= len) pkt[0]++;
+                if (i + 32 >= newLength) pkt[0]++;
                 pkt[1] = (byte)((blk >> 8) & 0xff);
                 pkt[2] = (byte)(blk & 0xff);
                 try { sp.Write(pkt, 0, pkt.Length); } catch { Out($"Serial send error (BLK:{blk})"); return; }
@@ -110,10 +141,49 @@ namespace TDH3Flash
             Out("Completed.");
         }
 
+        public static int ApplyIHex(byte[] data, string hex, out string error, bool forReal)
+        {
+            int fwLength = data.Length;
+            foreach (string hexLine in hex.Split('\n'))
+            {
+                string ihex = hexLine.Replace('\t', ' ').Replace('\r', ' ').Trim();
+                try
+                {
+                    if (ihex.StartsWith(':'))
+                    {
+                        int cnt = Convert.ToInt32(ihex.Substring(1, 2), 16);
+                        int addh = Convert.ToInt32(ihex.Substring(3, 2), 16);
+                        int addl = Convert.ToInt32(ihex.Substring(5, 2), 16);
+                        int add = (addh << 8) | addl;
+                        int type = Convert.ToInt32(ihex.Substring(7, 2), 16);
+                        if (type != 0) continue;
+                        int cs = cnt + addh + addl + type;
+                        int i = 0;
+                        for (; i < cnt; i++)
+                        {
+                            string s = ihex.Substring(9 + (2 * i), 2);
+                            int b = Convert.ToInt32(s, 16);
+                            cs += b;
+                            if (forReal)
+                                data[add] = (byte)b;
+                            if (add > fwLength - 1) fwLength = add + 1;
+                            add++;
+                        }
+                        int cs1 = Convert.ToInt32(ihex.Substring(9 + (2 * i), 2), 16);
+                        cs &= 0xff;
+                        cs = (0x100 - cs) & 0xff;
+                        if (cs != cs1) { error = "Bad checksum"; return 0; }
+                    }
+                }
+                catch { error = "Invalid iHex"; return 0; }
+            }
+            error = string.Empty;
+            return fwLength;
+        }
         public static void Usage()
         {
             Out("\r\nUsage:");
-            Out("TDH3Flash <port> <firmware bin file>");
+            Out("TDH3Flash [Intel hex patchfile] <port> <firmware bin file>");
         }
 
         public static void Out(string message)
