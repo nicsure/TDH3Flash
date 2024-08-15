@@ -1,4 +1,4 @@
-# Multi platform firmware flasher for the TIDRADIO TD-H3 
+# Multi platform firmware flasher for the TIDRADIO TD-H3 & TD-H8
   
 Download Here  
 https://github.com/nicsure/TDH3Flash/releases  
